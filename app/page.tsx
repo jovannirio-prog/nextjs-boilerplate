@@ -1,8 +1,29 @@
 "use client";
 import React, { useMemo, useState } from "react";
 
-/** ---------------- Budgets ---------------- **/
-const BUDGETS = {
+/** ========= Types ========= **/
+type Club = string;
+
+type Budgets = Record<Club, number>;
+
+interface Match {
+  date: string;
+  home: Club;
+  away: Club;
+  hg: number;
+  ag: number;
+}
+
+interface TableRow {
+  club: Club;
+  mp: number;
+  base: number;
+  adj: number;
+  delta: number;
+}
+
+/** ========= Data ========= **/
+const BUDGETS: Budgets = {
   "Зенит": 20.0,
   "Краснодар": 16.0,
   "Спартак": 9.0,
@@ -20,10 +41,9 @@ const BUDGETS = {
   "Сочи": 1.5,
   "Балтика": 1.2,
 };
-const TEAMS = Object.keys(BUDGETS);
+const TEAMS = Object.keys(BUDGETS) as Club[];
 
-/** ---------------- Matches (25 сыгранных) ---------------- **/
-const MATCHES = [
+const MATCHES: Match[] = [
   // Тур 1
   { date: "2025-07-19", home: "Динамо Москва", away: "Балтика", hg: 1, ag: 1 },
   { date: "2025-07-19", home: "Акрон", away: "Крылья Советов", hg: 1, ag: 1 },
@@ -55,39 +75,46 @@ const MATCHES = [
   { date: "2025-08-09", home: "Динамо Махачкала", away: "Акрон", hg: 1, ag: 1 },
 ];
 
-/** ---------------- BAP math ---------------- **/
+/** ========= BAP math ========= **/
 const ALPHA = 0.4;
 const CLIP_MIN = 0.6;
 const CLIP_MAX = 1.4;
-const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
-const basePoints = (hg, ag) => (hg > ag ? [3, 0] : hg < ag ? [0, 3] : [1, 1]);
 
-function strengths(budgets) {
+const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));
+
+const basePoints = (hg: number, ag: number): [number, number] =>
+  hg > ag ? [3, 0] : hg < ag ? [0, 3] : [1, 1];
+
+function strengths(budgets: Budgets): Record<Club, number> {
   const vals = Object.values(budgets);
   const bmin = Math.min(...vals);
   const bmax = Math.max(...vals);
   const denom = bmax - bmin || 1;
-  const S = {};
+  const S: Record<Club, number> = {};
   for (const [team, b] of Object.entries(budgets)) {
-    S[team] = (b - bmin) / denom; // [0..1]
+    S[team as Club] = (b - bmin) / denom; // [0..1]
   }
   return S;
 }
-const dCoef = (S, i, j) => clamp(1 + ALPHA * (S[j] - S[i]), CLIP_MIN, CLIP_MAX);
 
-/** ---------------- UI helpers ---------------- **/
-const UTable = ({ children }) => (
+const dCoef = (S: Record<Club, number>, i: Club, j: Club): number =>
+  clamp(1 + ALPHA * (S[j] - S[i]), CLIP_MIN, CLIP_MAX);
+
+/** ========= UI helpers ========= **/
+const UTable: React.FC<React.PropsWithChildren> = ({ children }) => (
   <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #ddd" }}>{children}</table>
 );
-const TH = ({ children }) => (
+const TH: React.FC<React.PropsWithChildren> = ({ children }) => (
   <th style={{ textAlign: "left", padding: 8, border: "1px solid #ddd", background: "#f7f7f7" }}>{children}</th>
 );
-const TD = ({ children, bold, color, style }) => (
+const TD: React.FC<
+  React.PropsWithChildren & { bold?: boolean; color?: string; style?: React.CSSProperties }
+> = ({ children, bold, color, style }) => (
   <td style={{ padding: 8, border: "1px solid #eee", fontWeight: bold ? 600 : 400, color, ...style }}>{children}</td>
 );
 
-/** ----------- visuals: S mini-bar & contrast shading ----------- **/
-function SBar({ s }) {
+/** ========= Visuals ========= **/
+const SBar: React.FC<{ s: number }> = ({ s }) => {
   const pct = Math.max(0, Math.min(1, s)) * 100;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -103,22 +130,25 @@ function SBar({ s }) {
       <div style={{ minWidth: 38, textAlign: "right" }}>{s.toFixed(2)}</div>
     </div>
   );
-}
-// Монохромная подсветка контраста сил: белый → тёмно-розовый
-function contrastBgMono(s1, s2) {
+};
+
+// Белый → тёмно-розовый по мере роста контраста сил
+function contrastBgMono(s1: number, s2: number): string {
   const diff = Math.abs(s1 - s2); // 0..1
-  const alpha = Math.min(0.45, diff * 0.7); // сила подсветки
+  const alpha = Math.min(0.45, diff * 0.7);
   return `rgba(235, 60, 125, ${alpha})`;
 }
 
-/** ---------------- Page ---------------- **/
-export default function Page() {
-  const [tab, setTab] = useState("table"); // table | matches | budgets | about
+/** ========= Page ========= **/
+type TabKey = "table" | "matches" | "budgets" | "about";
+
+export default function Page(): JSX.Element {
+  const [tab, setTab] = useState<TabKey>("table");
   const S = useMemo(() => strengths(BUDGETS), []);
 
-  // агрегируем очки для таблицы
-  const table = useMemo(() => {
-    const stats = {};
+  // агрегируем очки
+  const table: TableRow[] = useMemo(() => {
+    const stats: Record<Club, { mp: number; base: number; adj: number }> = {} as any;
     TEAMS.forEach((t) => (stats[t] = { mp: 0, base: 0, adj: 0 }));
     for (const m of MATCHES) {
       const [bh, ba] = basePoints(m.hg, m.ag);
@@ -132,8 +162,8 @@ export default function Page() {
       stats[m.away].adj += ba * Da;
     }
     return Object.entries(stats)
-      .map(([club, v]) => ({
-        club,
+      .map<TableRow>(([club, v]) => ({
+        club: club as Club,
         mp: v.mp,
         base: +v.base.toFixed(2),
         adj: +v.adj.toFixed(2),
@@ -148,19 +178,21 @@ export default function Page() {
       const [bh, ba] = basePoints(m.hg, m.ag);
       const Dh = dCoef(S, m.home, m.away);
       const Da = dCoef(S, m.away, m.home);
-      const sHome = S[m.home], sAway = S[m.away];
+      const sHome = S[m.home];
+      const sAway = S[m.away];
       return {
         ...m,
         Dh: +Dh.toFixed(3),
         Da: +Da.toFixed(3),
         homeAdj: +(bh * Dh).toFixed(3),
         awayAdj: +(ba * Da).toFixed(3),
-        sHome, sAway,
+        sHome,
+        sAway,
       };
     });
   }, [S]);
 
-  const navBtn = (key, label) => (
+  const navBtn = (key: TabKey, label: string): JSX.Element => (
     <button
       onClick={() => setTab(key)}
       style={{
@@ -179,7 +211,7 @@ export default function Page() {
 
   return (
     <div style={{ padding: 20, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
-      <h1 style={{ marginBottom: 16, fontSize: 26 }}>FairFootball (РПЛ) — BAP</h1>
+      <h1 style={{ marginBottom: 16, fontSize: 26 }}>RPL Fair Table — BAP</h1>
 
       {/* Навигация вкладок */}
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
@@ -207,9 +239,9 @@ export default function Page() {
               </thead>
               <tbody>
                 {table.map((r, i) => {
-                  const top3 = i < 3 ? { background: "#ecfdf5" } : null; // светло-зелёный
+                  const top3Style: React.CSSProperties | undefined = i < 3 ? { background: "#ecfdf5" } : undefined;
                   return (
-                    <tr key={r.club} style={top3}>
+                    <tr key={r.club} style={top3Style}>
                       <TD>{i + 1}</TD>
                       <TD>{r.club}</TD>
                       <TD>{r.mp}</TD>
@@ -276,7 +308,7 @@ export default function Page() {
                     <tr key={club}>
                       <TD>{club}</TD>
                       <TD>{b.toFixed(2)}</TD>
-                      <TD><SBar s={S[club]} /></TD>
+                      <TD><SBar s={S[club as Club]} /></TD>
                     </tr>
                   ))}
               </tbody>
@@ -297,7 +329,7 @@ export default function Page() {
             <p>
               Формула матча для команды <b>i</b> против <b>j</b>:
               <code style={{ padding: "0 6px" }}>D = 1 + α·(S<sub>j</sub> − S<sub>i</sub>)</code>,
-              где <b>S</b> — сила ресурса (min–max от бюджета в диапазон 0..1), <b>α</b> — чувствительность (здесь 0.4),
+              где <b>S</b> — сила ресурса (min–max от бюджета в диапазон 0..1), <b>α</b> — чувствительность (0.4),
               клип значений D — [{CLIP_MIN};{CLIP_MAX}].
             </p>
             <p>
@@ -306,7 +338,7 @@ export default function Page() {
             </p>
             <p>
               На вкладках сверху можно посмотреть текущую таблицу, список матчей с коэффициентами, а также бюджеты и визуализацию силы <b>S</b>.
-              В следующих версиях планируются: онлайн-обновление расписания, ввод счёта прямо на сайте, и сравнение с режимом стартового гандикапа.
+              План: онлайн-обновление расписания, ввод счёта на сайте и сравнение с режимом стартового гандикапа.
             </p>
           </div>
         </section>
