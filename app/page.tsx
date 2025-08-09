@@ -142,7 +142,7 @@ function contrastBgMono(s1: number, s2: number): string {
 /** ========= Page ========= **/
 type TabKey = "table" | "matches" | "budgets" | "about";
 
-export default function Page(): JSX.Element {
+export default function Page(): React.ReactElement {
   const [tab, setTab] = useState<TabKey>("table");
   const S = useMemo(() => strengths(BUDGETS), []);
 
@@ -192,7 +192,7 @@ export default function Page(): JSX.Element {
     });
   }, [S]);
 
-  const navBtn = (key: TabKey, label: string): JSX.Element => (
+  const navBtn = (key: TabKey, label: string): React.ReactElement => (
     <button
       onClick={() => setTab(key)}
       style={{
