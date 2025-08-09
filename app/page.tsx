@@ -179,7 +179,7 @@ export default function Page() {
 
   return (
     <div style={{ padding: 20, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
-      <h1 style={{ marginBottom: 16, fontSize: 26 }}>RPL Fair Table — BAP</h1>
+      <h1 style={{ marginBottom: 16, fontSize: 26 }}>FairFootball (РПЛ) — BAP</h1>
 
       {/* Навигация вкладок */}
       <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
